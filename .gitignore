@@ -1,5 +1,3 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring ignoring files.
-
 # dependencies
 node_modules
 /.pnp
@@ -42,18 +40,26 @@ yarn-error.log*
 next-env.d.ts
 
 # database
-db/*.db
-db/*.db-journal
+db/
 
 # logs
 *.log
 server.log
 
-# internal / sandbox
-local-*
-.claude
-.z-ai-config
+# internal / sandbox / not for distribution
 .zscripts/
+.z-ai-config
+.claude
+agent-ctx/
 skills/
+examples/
+mini-services/
+local-*
 prompt
 test
+Caddyfile
+
+# other projects (not part of AeroMaint)
+download/
+
+# lock files (optional - bun.lock is auto-generated)
