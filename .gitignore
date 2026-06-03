@@ -1,4 +1,4 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring ignoring files.
 
 # dependencies
 node_modules
@@ -30,25 +30,30 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+!.env.example
 
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database
+db/*.db
+db/*.db-journal
+
+# logs
+*.log
+server.log
+
+# internal / sandbox
 local-*
 .claude
 .z-ai-config
-*.log
-dev.log
-dev.out.log
-test
+.zscripts/
+skills/
 prompt
-
-server.log
-# Skills directory
-/skills/
+test
