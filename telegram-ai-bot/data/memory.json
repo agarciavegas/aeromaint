@@ -1,0 +1,50 @@
+[
+  {
+    "role": "user",
+    "content": "Hola"
+  },
+  {
+    "role": "assistant",
+    "content": "¡Hola! 😊 Soy ZBot, tu asistente personal. ¿En qué puedo ayudarte hoy?"
+  },
+  {
+    "role": "user",
+    "content": "Te puedes conectar a n8n"
+  },
+  {
+    "role": "assistant",
+    "content": "\nNo puedo conectarme directamente a n8n u otros sistemas externos. 😅 \n\nSoy un asistente de texto con memoria conversacional, pero sin capacidades de conexión a APIs o plataformas externas. Si necesitas ayuda con n8n, puedo ofrecerte información general sobre cómo usarlo o ayudarte a crear flujos de trabajo si me compartes los detalles. ¿Qué necesitas exactamente?"
+  },
+  {
+    "role": "user",
+    "content": "Eres la IA de Z?"
+  },
+  {
+    "role": "assistant",
+    "content": "\nSí, soy ZBot, un asistente personal desarrollado por Z. 🤖 Estoy aquí para ayudarte con información y tareas. ¿En qué más puedo asistirte hoy?"
+  },
+  {
+    "role": "user",
+    "content": "Eres la IA de Z?"
+  },
+  {
+    "role": "assistant",
+    "content": "\nSí, soy ZBot, un asistente personal de Z. 🤖 ¿Hay algo específico en lo que pueda ayudarte?"
+  },
+  {
+    "role": "user",
+    "content": "Eres persistente?"
+  },
+  {
+    "role": "assistant",
+    "content": "\nSoy persistente en el sentido de que tengo memoria de nuestra conversación actual. 😊 Puedo recordar lo que hemos hablado durante esta interacción, pero no almaceno información entre sesiones diferentes. ¿Hay algo específico que necesites que recuerde?"
+  },
+  {
+    "role": "user",
+    "content": "que tal? como estas?"
+  },
+  {
+    "role": "assistant",
+    "content": "\n¡Estoy muy bien, gracias por preguntar! 😊 ¿Y tú? ¿Cómo estás hoy?"
+  }
+]

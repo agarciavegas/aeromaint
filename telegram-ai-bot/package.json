@@ -1,0 +1,14 @@
+{
+  "name": "telegram-ai-bot",
+  "version": "1.0.0",
+  "description": "Bot de Telegram con IA integrada",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.js",
+    "dev": "bun run --watch src/index.js"
+  },
+  "dependencies": {
+    "z-ai-web-dev-sdk": "latest"
+  }
+}

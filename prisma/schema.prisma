@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================
+// TEMPLATES - Modelos predefinidos de aviones y partes
+// =====================================================
+
+model AircraftModelTemplate {
+  id           String   @id @default(cuid())
+  name         String   // "Cessna 172 Skyhawk"
+  manufacturer String   // "Cessna"
+  model        String   // "172"
+  engineModel  String?  // "Lycoming O-360-A4M"
+  propModel    String?  // "McCauley 1C160/DTM7557"
+  description  String?
+  parts        PartTemplate[]
+  aircraft     Aircraft[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PartTemplate {
+  id          String       @id @default(cuid())
+  name        String       // "Motor", "Helice", "Airframe"
+  ataChapter  String?      // ATA chapter code
+  description String?
+  parentId    String?
+  parent      PartTemplate?  @relation("TemplatePartHierarchy", fields: [parentId], references: [id])
+  children    PartTemplate[] @relation("TemplatePartHierarchy")
+  modelId     String
+  model       AircraftModelTemplate @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  rules       RuleTemplate[]
+  parts       Part[]        // Actual parts created from this template
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model RuleTemplate {
+  id              String       @id @default(cuid())
+  name            String       // "Overhaul del Motor"
+  description     String?
+  ruleType        String       // "hard_time", "on_condition", "inspection"
+  intervalHours   Int?         // Cada 2000 horas
+  intervalMonths  Int?         // Cada 12 meses
+  intervalCycles  Int?         // Cada N ciclos (aterrizajes)
+  reference       String?      // "FAR 91.409", "Lycoming SB XXX"
+  category        String       // "mandatory", "recommended", "ad"
+  partTemplateId  String
+  partTemplate    PartTemplate @relation(fields: [partTemplateId], references: [id], onDelete: Cascade)
+  rules           Rule[]        // Actual rules created from this template
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+// =====================================================
+// ACTUAL DATA - Aviones, partes y reglas reales
+// =====================================================
+
+model Aircraft {
+  id           String   @id @default(cuid())
+  registration String   @unique // "EC-ABC"
+  serialNumber String?
+  modelId      String
+  model        AircraftModelTemplate @relation(fields: [modelId], references: [id])
+  totalHours   Float    @default(0) // Total Time Since New
+  totalCycles  Int      @default(0) // Total aterrizajes
+  year         Int?
+  description  String?
+  status       String   @default("active") // active, grounded, maintenance
+  parts        Part[]
+  workOrders   WorkOrder[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Part {
+  id               String   @id @default(cuid())
+  name             String
+  serialNumber     String?
+  parentId         String?
+  parent           Part?    @relation("AircraftPartHierarchy", fields: [parentId], references: [id])
+  children         Part[]   @relation("AircraftPartHierarchy")
+  aircraftId       String
+  aircraft         Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  templateId       String?
+  template         PartTemplate? @relation(fields: [templateId], references: [id])
+  hoursSinceNew    Float    @default(0) // TSN
+  hoursSinceOvh    Float    @default(0) // TSO - Time Since Overhaul
+  cyclesSinceNew   Int      @default(0)
+  installDate      DateTime?
+  lastOverhaulDate DateTime?
+  status           String   @default("serviceable") // serviceable, unserviceable, overhaul_due
+  rules            Rule[]
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Rule {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  ruleType           String    // hard_time, on_condition, inspection
+  intervalHours      Int?
+  intervalMonths     Int?
+  intervalCycles     Int?
+  reference          String?
+  category           String    // mandatory, recommended, ad
+  hoursSinceLast     Float     @default(0)
+  cyclesSinceLast    Int       @default(0)
+  dateLastCompleted  DateTime?
+  dueDate            DateTime?
+  status             String    @default("compliant") // compliant, due_soon, overdue, na
+  partId             String
+  part               Part      @relation(fields: [partId], references: [id], onDelete: Cascade)
+  templateId         String?
+  template           RuleTemplate? @relation(fields: [templateId], references: [id])
+  workOrderItems     WorkOrderItem[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+// =====================================================
+// WORK ORDERS - Ordenes de trabajo
+// =====================================================
+
+model WorkOrder {
+  id            String    @id @default(cuid())
+  number        String    @unique // WO-2024-001
+  title         String
+  description   String?
+  aircraftId    String
+  aircraft      Aircraft  @relation(fields: [aircraftId], references: [id])
+  status        String    @default("open") // open, in_progress, completed, cancelled
+  priority      String    @default("normal") // low, normal, high, urgent
+  type          String    @default("scheduled") // scheduled, unscheduled, ad_compliance, inspection
+  assignedTo    String?
+  scheduledDate DateTime?
+  completedDate DateTime?
+  items         WorkOrderItem[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model WorkOrderItem {
+  id            String     @id @default(cuid())
+  workOrderId   String
+  workOrder     WorkOrder  @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  ruleId        String?
+  rule          Rule?      @relation(fields: [ruleId], references: [id])
+  description   String
+  status        String     @default("pending") // pending, in_progress, completed, deferred
+  notes         String?
+  completedBy   String?
+  completedDate DateTime?
+  sortOrder     Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}

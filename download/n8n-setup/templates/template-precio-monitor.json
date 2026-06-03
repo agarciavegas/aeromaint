@@ -1,0 +1,173 @@
+{
+  "name": "Template - Monitor de Precios",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Cada 30 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.TARGET_URL }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "id": "http-request",
+      "name": "Scrapear Pagina",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "extractValues": {
+          "values": [
+            {
+              "key": "price",
+              "cssSelector": "={{ $env.PRICE_SELECTOR }}",
+              "returnValue": "text"
+            },
+            {
+              "key": "title",
+              "cssSelector": "={{ $env.TITLE_SELECTOR }}",
+              "returnValue": "text"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "html-extract",
+      "name": "Extraer Precio",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const priceText = $input.item.json.price;\nconst price = parseFloat(priceText.replace(/[^0-9.,]/g, '').replace(',', '.'));\nconst targetPrice = parseFloat($env.TARGET_PRICE || '0');\nconst lastPrice = parseFloat($env.LAST_PRICE || '0');\n\nlet shouldNotify = false;\nlet reason = '';\n\nif (targetPrice > 0 && price <= targetPrice) {\n  shouldNotify = true;\n  reason = `Precio ${price}€ <= objetivo ${targetPrice}€`;\n} else if (lastPrice > 0 && price < lastPrice) {\n  shouldNotify = true;\n  reason = `Precio bajo de ${lastPrice}€ a ${price}€`;\n}\n\nreturn {\n  json: {\n    price,\n    targetPrice,\n    lastPrice,\n    shouldNotify,\n    reason,\n    title: $input.item.json.title\n  }\n};"
+      },
+      "id": "compare-price",
+      "name": "Comparar Precio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldNotify }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-notify",
+      "name": "Notificar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=🔔 *Alerta de Precio!*\n\n📦 *Producto:* {{ $json.title }}\n💰 *Precio actual:* {{ $json.price }}€\n🎯 *Objetivo:* {{ $json.targetPrice }}€\n📝 *Motivo:* {{ $json.reason }}\n\n⏰ {{ new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }) }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "send-telegram",
+      "name": "Enviar Alerta Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1350, 200]
+    }
+  ],
+  "connections": {
+    "Cada 30 minutos": {
+      "main": [
+        [
+          {
+            "node": "Scrapear Pagina",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrapear Pagina": {
+      "main": [
+        [
+          {
+            "node": "Extraer Precio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Precio": {
+      "main": [
+        [
+          {
+            "node": "Comparar Precio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comparar Precio": {
+      "main": [
+        [
+          {
+            "node": "Notificar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Alerta Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "template"
+    },
+    {
+      "name": "precio"
+    }
+  ]
+}
