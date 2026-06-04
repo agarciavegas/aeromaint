@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -45,6 +46,46 @@ async function main() {
   await prisma.ruleTemplate.deleteMany();
   await prisma.partTemplate.deleteMany();
   await prisma.aircraftModelTemplate.deleteMany();
+  await prisma.user.deleteMany();
+
+  // ============================================
+  // DEFAULT USERS
+  // ============================================
+  const adminPassword = await bcrypt.hash('AeroMaint2024!', 12);
+  const managerPassword = await bcrypt.hash('Manager2024!', 12);
+  const technicianPassword = await bcrypt.hash('Tecnico2024!', 12);
+
+  const adminUser = await prisma.user.create({
+    data: {
+      name: 'Administrador',
+      email: 'admin@aeromaint.com',
+      password: adminPassword,
+      role: 'admin',
+      active: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      name: 'Jefe de Mantenimiento',
+      email: 'manager@aeromaint.com',
+      password: managerPassword,
+      role: 'manager',
+      active: true,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      name: 'Técnico Mantenimiento',
+      email: 'tecnico@aeromaint.com',
+      password: technicianPassword,
+      role: 'technician',
+      active: true,
+    },
+  });
+
+  console.log('- 3 default users created (admin, manager, technician)');
 
   // ============================================
   // MODEL 1: Cessna 172 Skyhawk
@@ -895,6 +936,7 @@ async function main() {
       type: 'scheduled',
       assignedTo: 'Taller Mantenimiento A',
       scheduledDate: new Date('2025-07-01'),
+      createdById: adminUser.id,
     },
   });
 
@@ -924,6 +966,7 @@ async function main() {
   });
 
   console.log('Database seeded successfully!');
+  console.log(`- 3 default users created (admin, manager, technician)`);
   console.log(`- 3 aircraft model templates created`);
   console.log(`- 2 aircraft created (EC-ABC, EC-XYZ)`);
   console.log(`- 1 sample work order created`);

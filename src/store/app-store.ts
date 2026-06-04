@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type Panel = 'dashboard' | 'aircraft' | 'workorders' | 'models';
+export type Panel = 'dashboard' | 'aircraft' | 'workorders' | 'models' | 'users';
 
 interface AppState {
   currentPanel: Panel;

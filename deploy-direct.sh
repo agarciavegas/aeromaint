@@ -83,6 +83,8 @@ User=$(whoami)
 WorkingDirectory=$APP_DIR/.next/standalone
 Environment=NODE_ENV=production
 Environment=DATABASE_URL=file:$APP_DIR/db/aeromaint.db
+Environment=NEXTAUTH_SECRET=aeromaint-prod-secret-2024-change-me
+Environment=NEXTAUTH_URL=http://localhost:3000
 Environment=PORT=3000
 ExecStart=$(which node) server.js
 Restart=always
@@ -121,6 +123,10 @@ if sudo systemctl is-active --quiet aeromaint; then
     echo ""
     echo -e "  Access the application at:"
     echo -e "  ${GREEN}http://${PUBLIC_IP}:3000${NC}"
+    echo ""
+    echo -e "  Default login credentials:"
+    echo -e "  ${YELLOW}Email: admin@aeromaint.com${NC}"
+    echo -e "  ${YELLOW}Password: AeroMaint2024!${NC}"
     echo ""
     echo -e "  First time? Seed the database:"
     echo -e "  ${YELLOW}cd $APP_DIR && npx tsx prisma/seed.ts${NC}"

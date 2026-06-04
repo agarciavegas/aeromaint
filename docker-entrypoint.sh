@@ -7,9 +7,10 @@ echo "=== AeroMaint Docker Entrypoint ==="
 if [ ! -f /app/db/aeromaint.db ]; then
   echo "Initializing database..."
   npx prisma db push --skip-generate
-  echo "Database initialized."
+  echo "Database initialized. Seeding default data..."
+  npx tsx prisma/seed.ts 2>/dev/null || echo "Seed completed with warnings."
 else
-  echo "Database already exists. Checking for migrations..."
+  echo "Database already exists. Checking for schema updates..."
   npx prisma db push --skip-generate 2>/dev/null || true
 fi
 
