@@ -13,7 +13,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { updateAircraftHours } from '@/lib/local-db';
 
 interface UpdateHoursDialogProps {
   open: boolean;
@@ -39,7 +38,13 @@ export function UpdateHoursDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = () => {
+  // Update local state when props change
+  useState(() => {
+    setTotalHours(currentHours.toString());
+    setTotalCycles(currentCycles.toString());
+  });
+
+  const handleSubmit = async () => {
     if (!aircraftId) return;
 
     const newHours = parseFloat(totalHours);
@@ -64,7 +69,17 @@ export function UpdateHoursDialog({
     setError('');
 
     try {
-      updateAircraftHours(aircraftId, newHours, newCycles);
+      const res = await fetch(`/api/aircraft/${aircraftId}/hours`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totalHours: newHours, totalCycles: newCycles }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Error al actualizar horas');
+      }
+
       onUpdated();
       onOpenChange(false);
     } catch (err: any) {

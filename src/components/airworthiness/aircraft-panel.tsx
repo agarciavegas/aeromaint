@@ -1,13 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plane, Search } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { StatusBadge } from './rule-badge';
 import { AircraftDetail } from './aircraft-detail';
-import { getAircraftList } from '@/lib/local-db';
-import type { Aircraft } from '@/lib/local-db';
+
+interface AircraftListItem {
+  id: string;
+  registration: string;
+  serialNumber: string | null;
+  totalHours: number;
+  totalCycles: number;
+  year: number | null;
+  status: string;
+  model: { name: string; manufacturer: string; engineModel: string | null };
+  parts: AircraftPart[];
+}
+
+interface AircraftPart {
+  id: string;
+  name: string;
+  rules: AircraftRule[];
+  children: AircraftPart[];
+}
+
+interface AircraftRule {
+  id: string;
+  status: string;
+}
 
 interface AircraftPanelProps {
   onUpdateHours: (aircraftId: string) => void;
@@ -15,15 +37,21 @@ interface AircraftPanelProps {
 }
 
 export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPanelProps) {
-  const [aircraft, setAircraft] = useState<Aircraft[]>(() => {
-    try { return getAircraftList(); } catch { return []; }
-  });
+  const [aircraft, setAircraft] = useState<AircraftListItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const refreshAircraft = () => {
-    try { setAircraft(getAircraftList()); } catch {}
-  };
+  const fetchAircraft = useCallback(() => {
+    fetch('/api/aircraft')
+      .then(r => r.json())
+      .then(data => { setAircraft(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetchAircraft();
+  }, [fetchAircraft]);
 
   const filteredAircraft = aircraft.filter(
     (a) =>
@@ -31,15 +59,15 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
       a.model?.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getRuleStatuses = (a: Aircraft) => {
+  const getRuleStatuses = (a: AircraftListItem) => {
     let overdue = 0, dueSoon = 0;
-    const walk = (parts: Aircraft['parts']) => {
+    const walk = (parts: AircraftPart[]) => {
       for (const p of parts) {
         for (const r of p.rules || []) {
           if (r.status === 'overdue') overdue++;
           if (r.status === 'due_soon') dueSoon++;
         }
-        if (p.children) walk(p.children as Aircraft['parts']);
+        if (p.children) walk(p.children);
       }
     };
     walk(a.parts || []);
@@ -50,10 +78,18 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
     return (
       <AircraftDetail
         aircraftId={selectedId}
-        onBack={() => { setSelectedId(null); refreshAircraft(); }}
+        onBack={() => { setSelectedId(null); fetchAircraft(); }}
         onUpdateHours={() => onUpdateHours(selectedId)}
         onCreateWorkOrder={onCreateWorkOrder}
       />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-zinc-400">Cargando aeronaves...</div>
+      </div>
     );
   }
 

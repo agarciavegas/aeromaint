@@ -5,30 +5,65 @@ import { ChevronRight, ChevronDown, Wrench, Settings2, CircleDot } from 'lucide-
 import { Checkbox } from '@/components/ui/checkbox';
 import { RuleBadge } from './rule-badge';
 import { useAppStore } from '@/store/app-store';
-import type { Part, Rule } from './types';
+
+interface Rule {
+  id: string;
+  name: string;
+  status: string;
+  intervalHours: number | null;
+  intervalMonths: number | null;
+  intervalCycles: number | null;
+  hoursSinceLast: number;
+  cyclesSinceLast: number;
+  dateLastCompleted: string | null;
+  ruleType: string;
+  reference: string | null;
+  category: string;
+}
+
+interface Part {
+  id: string;
+  name: string;
+  partNumber: string | null;
+  ataChapter?: string | null;
+  serialNumber: string | null;
+  hoursSinceNew: number;
+  hoursSinceOvh: number;
+  cyclesSinceNew: number;
+  status: string;
+  children: Part[];
+  rules: Rule[];
+}
 
 interface PartTreeProps {
   parts: Part[];
   onRuleClick?: (rule: Rule) => void;
+  showPartNumbers?: boolean;
+  showHours?: boolean;
 }
 
-export function PartTree({ parts, onRuleClick }: PartTreeProps) {
+export function PartTree({ parts, onRuleClick, showPartNumbers = false, showHours = false }: PartTreeProps) {
   return (
     <div className="space-y-1">
       {parts.map((part) => (
-        <PartNode key={part.id} part={part} level={0} onRuleClick={onRuleClick} />
+        <PartNode key={part.id} part={part} level={0} onRuleClick={onRuleClick} showPartNumbers={showPartNumbers} showHours={showHours} />
       ))}
     </div>
   );
 }
 
-function PartNode({ part, level, onRuleClick }: { part: Part; level: number; onRuleClick?: (rule: Rule) => void }) {
+function PartNode({ part, level, onRuleClick, showPartNumbers, showHours }: {
+  part: Part;
+  level: number;
+  onRuleClick?: (rule: Rule) => void;
+  showPartNumbers?: boolean;
+  showHours?: boolean;
+}) {
   const [expanded, setExpanded] = useState(level < 1);
   const { selectedRuleIds, toggleRuleSelection } = useAppStore();
   const hasChildren = part.children && part.children.length > 0;
   const hasRules = part.rules && part.rules.length > 0;
 
-  // Count rule statuses
   const ruleStatusCounts = {
     compliant: part.rules?.filter(r => r.status === 'compliant').length || 0,
     due_soon: part.rules?.filter(r => r.status === 'due_soon').length || 0,
@@ -65,10 +100,24 @@ function PartNode({ part, level, onRuleClick }: { part: Part; level: number; onR
         {/* Part name */}
         <span className="text-sm font-medium text-zinc-800 truncate flex-1">{part.name}</span>
 
+        {/* Part number */}
+        {showPartNumbers && part.partNumber && (
+          <span className="text-[10px] text-zinc-400 font-mono bg-zinc-100 px-1.5 py-0.5 rounded shrink-0">
+            {part.partNumber}
+          </span>
+        )}
+
         {/* ATA chapter */}
         {part.ataChapter && (
           <span className="text-[10px] text-zinc-400 font-mono bg-zinc-100 px-1.5 py-0.5 rounded shrink-0">
             ATA {part.ataChapter}
+          </span>
+        )}
+
+        {/* Hours info */}
+        {showHours && (
+          <span className="text-[10px] text-zinc-500 font-mono shrink-0">
+            TSN:{part.hoursSinceNew}h
           </span>
         )}
 
@@ -120,7 +169,7 @@ function PartNode({ part, level, onRuleClick }: { part: Part; level: number; onR
           {hasChildren && (
             <div>
               {part.children.map((child) => (
-                <PartNode key={child.id} part={child} level={level + 1} onRuleClick={onRuleClick} />
+                <PartNode key={child.id} part={child} level={level + 1} onRuleClick={onRuleClick} showPartNumbers={showPartNumbers} showHours={showHours} />
               ))}
             </div>
           )}

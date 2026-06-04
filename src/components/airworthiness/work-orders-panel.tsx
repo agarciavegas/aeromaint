@@ -1,37 +1,78 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, ClipboardList, Plus, CheckCircle2, Play, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatusBadge, PriorityBadge } from './rule-badge';
-import { useAppStore } from '@/store/app-store';
-import { getWorkOrders, getWorkOrder, updateWorkOrder as dbUpdateWorkOrder, deleteWorkOrder as dbDeleteWorkOrder, addWorkOrderItem as dbAddWorkOrderItem, updateWorkOrderItem as dbUpdateWorkOrderItem } from '@/lib/local-db';
-import type { WorkOrder } from '@/lib/local-db';
+
+interface WorkOrderItem {
+  id: string;
+  description: string;
+  status: string;
+  notes: string | null;
+  completedBy: string | null;
+  completedDate: string | null;
+  sortOrder: number;
+  rule?: {
+    id: string;
+    name: string;
+    part: { name: string };
+  } | null;
+}
+
+interface WorkOrderData {
+  id: string;
+  number: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  type: string;
+  assignedTo: string | null;
+  scheduledDate: string | null;
+  completedDate: string | null;
+  aircraft: { registration: string; model: { name: string } };
+  items: WorkOrderItem[];
+}
+
+interface WorkOrderListItem {
+  id: string;
+  number: string;
+  title: string;
+  status: string;
+  priority: string;
+  type: string;
+  assignedTo: string | null;
+  scheduledDate: string | null;
+  aircraft: { registration: string; model: { name: string } };
+  _count: { items: number };
+}
 
 interface WorkOrdersPanelProps {
   onCreateWorkOrder: () => void;
+  initialWorkOrderId?: string | null;
+  refreshKey?: number;
 }
 
-export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(() => {
-    try { return getWorkOrders(); } catch { return []; }
-  });
+export function WorkOrdersPanel({ onCreateWorkOrder, initialWorkOrderId, refreshKey }: WorkOrdersPanelProps) {
+  const [workOrders, setWorkOrders] = useState<WorkOrderListItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { selectedWorkOrderId, selectWorkOrder } = useAppStore();
+  const [selectedId, setSelectedId] = useState<string | null>(initialWorkOrderId || null);
 
-  // Handle incoming selection from dashboard
-  if (selectedWorkOrderId && !selectedId) {
-    setSelectedId(selectedWorkOrderId);
-    selectWorkOrder(null);
-  }
+  const fetchWorkOrders = useCallback(() => {
+    fetch('/api/workorders')
+      .then(r => r.json())
+      .then(data => { setWorkOrders(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
 
-  const refreshWorkOrders = () => {
-    try { setWorkOrders(getWorkOrders()); } catch {}
-  };
+  useEffect(() => {
+    fetchWorkOrders();
+  }, [fetchWorkOrders, refreshKey]);
 
   const filteredWorkOrders = workOrders.filter(
     (wo) => statusFilter === 'all' || wo.status === statusFilter
@@ -41,8 +82,16 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
     return (
       <WorkOrderDetail
         workOrderId={selectedId}
-        onBack={() => { setSelectedId(null); refreshWorkOrders(); }}
+        onBack={() => { setSelectedId(null); fetchWorkOrders(); }}
       />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-zinc-400">Cargando...</div>
+      </div>
     );
   }
 
@@ -101,7 +150,7 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
                   <span className="text-xs text-zinc-400 font-mono">{wo.aircraft?.registration}</span>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-zinc-500">
-                  <span>{wo.items?.length || 0} item(s)</span>
+                  <span>{wo._count?.items || 0} item(s)</span>
                   {wo.assignedTo && <span>Asignado: {wo.assignedTo}</span>}
                   {wo.scheduledDate && (
                     <span>Programada: {new Date(wo.scheduledDate).toLocaleDateString('es-ES')}</span>
@@ -117,37 +166,65 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
 }
 
 function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack: () => void }) {
-  const [workOrder, setWorkOrder] = useState<WorkOrder | null>(() => {
-    try { return getWorkOrder(workOrderId); } catch { return null; }
-  });
+  const [workOrder, setWorkOrder] = useState<WorkOrderData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [newItemDesc, setNewItemDesc] = useState('');
 
-  const refreshWorkOrder = useCallback(() => {
-    try { setWorkOrder(getWorkOrder(workOrderId)); } catch {}
+  // Fetch work order on mount and when workOrderId changes
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/workorders/${workOrderId}`)
+      .then(r => r.json())
+      .then(data => { if (!cancelled) { setWorkOrder(data); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [workOrderId]);
 
-  const handleUpdateStatus = (newStatus: string) => {
+  const refreshWorkOrder = () => {
+    setLoading(true);
+    fetch(`/api/workorders/${workOrderId}`)
+      .then(r => r.json())
+      .then(data => { setWorkOrder(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+
+  const handleUpdateStatus = async (newStatus: string) => {
     try {
-      dbUpdateWorkOrder(workOrderId, { status: newStatus });
+      await fetch(`/api/workorders/${workOrderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          ...(newStatus === 'completed' ? { completedDate: new Date().toISOString() } : {}),
+        }),
+      });
       refreshWorkOrder();
     } catch (err) {
       console.error('Error updating work order:', err);
     }
   };
 
-  const handleUpdateItemStatus = (itemId: string, newStatus: string) => {
+  const handleUpdateItemStatus = async (itemId: string, newStatus: string, completedBy?: string) => {
     try {
-      dbUpdateWorkOrderItem(itemId, { status: newStatus });
+      await fetch(`/api/workorders/${workOrderId}/items/${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, ...(completedBy ? { completedBy } : {}) }),
+      });
       refreshWorkOrder();
     } catch (err) {
       console.error('Error updating item:', err);
     }
   };
 
-  const handleAddManualItem = () => {
+  const handleAddManualItem = async () => {
     if (!newItemDesc.trim()) return;
     try {
-      dbAddWorkOrderItem(workOrderId, newItemDesc.trim());
+      await fetch(`/api/workorders/${workOrderId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: newItemDesc.trim() }),
+      });
       setNewItemDesc('');
       refreshWorkOrder();
     } catch (err) {
@@ -155,16 +232,24 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (confirm('¿Eliminar esta orden de trabajo?')) {
       try {
-        dbDeleteWorkOrder(workOrderId);
+        await fetch(`/api/workorders/${workOrderId}`, { method: 'DELETE' });
         onBack();
       } catch (err) {
         console.error('Error deleting work order:', err);
       }
     }
   };
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-zinc-400">Cargando...</div>
+      </div>
+    );
+  }
 
   if (!workOrder) {
     return (
@@ -292,7 +377,7 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
                     </Button>
                   )}
                   {(item.status === 'pending' || item.status === 'in_progress') && (
-                    <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-600" onClick={() => handleUpdateItemStatus(item.id, 'completed')}>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-600" onClick={() => handleUpdateItemStatus(item.id, 'completed', 'Operador')}>
                       <CheckCircle2 className="h-3 w-3" />
                     </Button>
                   )}

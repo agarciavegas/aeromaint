@@ -15,8 +15,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getAircraftList, createWorkOrder } from '@/lib/local-db';
-import type { Aircraft } from '@/lib/local-db';
+
+interface AircraftOption {
+  id: string;
+  registration: string;
+  model: { name: string };
+}
 
 interface CreateWorkOrderDialogProps {
   open: boolean;
@@ -33,7 +37,7 @@ export function CreateWorkOrderDialog({
   preselectedAircraftId,
   onCreated,
 }: CreateWorkOrderDialogProps) {
-  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+  const [aircraft, setAircraft] = useState<AircraftOption[]>([]);
   const [aircraftId, setAircraftId] = useState(preselectedAircraftId || '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -47,7 +51,16 @@ export function CreateWorkOrderDialog({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    try { setAircraft(getAircraftList()); } catch {}
+    if (open) {
+      fetch('/api/aircraft')
+        .then(r => r.json())
+        .then(data => setAircraft(data.map((a: any) => ({
+          id: a.id,
+          registration: a.registration,
+          model: a.model,
+        }))))
+        .catch(console.error);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -55,7 +68,7 @@ export function CreateWorkOrderDialog({
     if (preselectedRuleIds.length > 0) setRuleIds(preselectedRuleIds);
   }, [preselectedAircraftId, preselectedRuleIds]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!aircraftId || !title.trim()) {
       setError('Aeronave y título son obligatorios');
       return;
@@ -66,17 +79,26 @@ export function CreateWorkOrderDialog({
 
     try {
       const validManualItems = manualItems.filter(i => i.trim());
-      createWorkOrder({
-        aircraftId,
-        title: title.trim(),
-        description: description.trim() || null,
-        priority,
-        type,
-        assignedTo: assignedTo.trim() || null,
-        scheduledDate: scheduledDate || null,
-        ruleIds,
-        manualItems: validManualItems,
+      const res = await fetch('/api/workorders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          aircraftId,
+          title: title.trim(),
+          description: description.trim() || null,
+          priority,
+          type,
+          assignedTo: assignedTo.trim() || null,
+          scheduledDate: scheduledDate || null,
+          ruleIds,
+          manualItems: validManualItems,
+        }),
       });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Error al crear orden de trabajo');
+      }
 
       setTitle('');
       setDescription('');

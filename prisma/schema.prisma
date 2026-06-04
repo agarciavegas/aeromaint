@@ -28,6 +28,7 @@ model AircraftModelTemplate {
 model PartTemplate {
   id          String       @id @default(cuid())
   name        String       // "Motor", "Helice", "Airframe"
+  partNumber  String?      // P/N - Part Number
   ataChapter  String?      // ATA chapter code
   description String?
   parentId    String?
@@ -46,7 +47,7 @@ model RuleTemplate {
   id              String       @id @default(cuid())
   name            String       // "Overhaul del Motor"
   description     String?
-  ruleType        String       // "hard_time", "on_condition", "inspection"
+  ruleType        String       // "hard_time", "on_condition", "inspection", "ad"
   intervalHours   Int?         // Cada 2000 horas
   intervalMonths  Int?         // Cada 12 meses
   intervalCycles  Int?         // Cada N ciclos (aterrizajes)
@@ -83,6 +84,7 @@ model Aircraft {
 model Part {
   id               String   @id @default(cuid())
   name             String
+  partNumber       String?  // P/N - Part Number
   serialNumber     String?
   parentId         String?
   parent           Part?    @relation("AircraftPartHierarchy", fields: [parentId], references: [id])
@@ -107,7 +109,7 @@ model Rule {
   id                 String    @id @default(cuid())
   name               String
   description        String?
-  ruleType           String    // hard_time, on_condition, inspection
+  ruleType           String    // hard_time, on_condition, inspection, ad
   intervalHours      Int?
   intervalMonths     Int?
   intervalCycles     Int?

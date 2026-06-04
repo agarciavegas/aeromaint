@@ -1,8 +1,7 @@
 'use client';
 
-// Re-export types from local-db for backward compatibility
 export type {
-  AircraftModel as AircraftModelTemplate,
+  AircraftModelTemplate,
   PartTemplate,
   RuleTemplate,
   Aircraft,
@@ -10,6 +9,6 @@ export type {
   Rule,
   WorkOrder,
   WorkOrderItem,
-} from '@/lib/local-db';
+} from '@prisma/client';
 
 export type { RuleStatus } from './rule-badge';

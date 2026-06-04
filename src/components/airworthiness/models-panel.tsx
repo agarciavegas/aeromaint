@@ -1,28 +1,77 @@
 'use client';
 
-import { useState } from 'react';
-import { BookOpen, ChevronRight, ChevronDown, Settings2, Wrench, CircleDot, Plane } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BookOpen, ChevronRight, ChevronDown, Settings2, Wrench, CircleDot, Plane, Plus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getModels } from '@/lib/local-db';
-import type { AircraftModel, PartTemplate, RuleTemplate } from '@/lib/local-db';
+
+interface RuleTemplate {
+  id: string;
+  name: string;
+  ruleType: string;
+  intervalHours: number | null;
+  intervalMonths: number | null;
+}
+
+interface PartTemplate {
+  id: string;
+  name: string;
+  partNumber: string | null;
+  ataChapter: string | null;
+  sortOrder: number;
+  children: PartTemplate[];
+  rules: RuleTemplate[];
+}
+
+interface ModelData {
+  id: string;
+  name: string;
+  manufacturer: string;
+  model: string;
+  engineModel: string | null;
+  propModel: string | null;
+  description: string | null;
+  _count: { aircraft: number };
+  parts: PartTemplate[];
+}
 
 interface ModelsPanelProps {
   onCreateAircraft: (modelId: string) => void;
+  onCreateModel: () => void;
 }
 
-export function ModelsPanel({ onCreateAircraft }: ModelsPanelProps) {
-  const [models, setModels] = useState<AircraftModel[]>(() => {
-    try { return getModels(); } catch { return []; }
-  });
+export function ModelsPanel({ onCreateAircraft, onCreateModel }: ModelsPanelProps) {
+  const [models, setModels] = useState<ModelData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/models')
+      .then(r => r.json())
+      .then(data => { setModels(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-zinc-400">Cargando modelos...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Modelos de Aeronaves</h1>
-        <p className="text-sm text-zinc-500 mt-1">Plantillas predefinidas para crear nuevas aeronaves</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-zinc-900">Modelos de Aeronaves</h1>
+          <p className="text-sm text-zinc-500 mt-1">Plantillas predefinidas para crear nuevas aeronaves</p>
+        </div>
+        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={onCreateModel}>
+          <Plus className="h-4 w-4 mr-1.5" />
+          Nuevo Modelo
+        </Button>
       </div>
 
       {models.length === 0 ? (
@@ -116,6 +165,11 @@ function TemplatePartNode({ part, level }: { part: PartTemplate; level: number }
           <Wrench className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
         )}
         <span className="text-sm font-medium text-zinc-800 flex-1">{part.name}</span>
+        {part.partNumber && (
+          <span className="text-[10px] text-zinc-400 font-mono bg-zinc-100 px-1.5 py-0.5 rounded shrink-0">
+            {part.partNumber}
+          </span>
+        )}
         {part.ataChapter && (
           <span className="text-[10px] text-zinc-400 font-mono bg-zinc-100 px-1.5 py-0.5 rounded shrink-0">
             ATA {part.ataChapter}
@@ -139,7 +193,7 @@ function TemplatePartNode({ part, level }: { part: PartTemplate; level: number }
                     {rule.intervalMonths && `${rule.intervalMonths}m`}
                   </span>
                   <Badge variant="outline" className="text-[10px] px-1 py-0">
-                    {rule.ruleType === 'hard_time' ? 'Tiempo fijo' : rule.ruleType === 'on_condition' ? 'Condición' : 'Inspección'}
+                    {rule.ruleType === 'hard_time' ? 'Tiempo fijo' : rule.ruleType === 'on_condition' ? 'Condición' : rule.ruleType === 'ad' ? 'DA/CAD' : 'Inspección'}
                   </Badge>
                 </div>
               ))}

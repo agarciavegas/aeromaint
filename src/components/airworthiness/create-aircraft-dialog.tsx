@@ -13,8 +13,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getModels, createAircraftFromModel } from '@/lib/local-db';
-import type { AircraftModel } from '@/lib/local-db';
+
+interface ModelOption {
+  id: string;
+  name: string;
+  manufacturer: string;
+}
 
 interface CreateAircraftDialogProps {
   open: boolean;
@@ -24,7 +28,7 @@ interface CreateAircraftDialogProps {
 }
 
 export function CreateAircraftDialog({ open, onOpenChange, modelId, onCreated }: CreateAircraftDialogProps) {
-  const [models, setModels] = useState<AircraftModel[]>([]);
+  const [models, setModels] = useState<ModelOption[]>([]);
   const [selectedModelId, setSelectedModelId] = useState(modelId || '');
   const [registration, setRegistration] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
@@ -35,14 +39,19 @@ export function CreateAircraftDialog({ open, onOpenChange, modelId, onCreated }:
   const [error, setError] = useState('');
 
   useEffect(() => {
-    try { setModels(getModels()); } catch {}
+    if (open) {
+      fetch('/api/models')
+        .then(r => r.json())
+        .then(data => setModels(data.map((m: any) => ({ id: m.id, name: m.name, manufacturer: m.manufacturer }))))
+        .catch(console.error);
+    }
   }, [open]);
 
   useEffect(() => {
     if (modelId) setSelectedModelId(modelId);
   }, [modelId]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedModelId || !registration.trim()) {
       setError('Matrícula y modelo son obligatorios');
       return;
@@ -52,14 +61,23 @@ export function CreateAircraftDialog({ open, onOpenChange, modelId, onCreated }:
     setError('');
 
     try {
-      createAircraftFromModel({
-        modelId: selectedModelId,
-        registration: registration.trim().toUpperCase(),
-        serialNumber: serialNumber.trim() || null,
-        totalHours: parseFloat(totalHours) || 0,
-        totalCycles: parseInt(totalCycles) || 0,
-        year: year ? parseInt(year) : null,
+      const res = await fetch('/api/aircraft/create-from-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelId: selectedModelId,
+          registration: registration.trim().toUpperCase(),
+          serialNumber: serialNumber.trim() || null,
+          totalHours: parseFloat(totalHours) || 0,
+          totalCycles: parseInt(totalCycles) || 0,
+          year: year ? parseInt(year) : null,
+        }),
       });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Error al crear aeronave');
+      }
 
       setRegistration('');
       setSerialNumber('');

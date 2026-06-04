@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  aeromaint:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:/app/db/aeromaint.db
+    volumes:
+      - aeromaint-data:/app/db
+    restart: unless-stopped
+
+volumes:
+  aeromaint-data:

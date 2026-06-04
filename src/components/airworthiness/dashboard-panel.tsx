@@ -1,19 +1,58 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plane, ClipboardList, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge, PriorityBadge } from './rule-badge';
 import { useAppStore } from '@/store/app-store';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { getStats, type DashboardStats } from '@/lib/local-db';
-import type { WorkOrder } from '@/lib/local-db';
+
+interface DashboardStats {
+  totalAircraft: number;
+  activeWorkOrders: number;
+  overdueRules: number;
+  dueSoonRules: number;
+  compliantRules: number;
+  naRules: number;
+  recentWorkOrders: Array<{
+    id: string;
+    number: string;
+    title: string;
+    status: string;
+    priority: string;
+    aircraft?: { registration: string };
+  }>;
+  overdueRulesList: Array<{
+    id: string;
+    name: string;
+    status: string;
+    intervalHours: number | null;
+    intervalMonths: number | null;
+    hoursSinceLast: number;
+    part: { name: string; aircraft: { registration: string } };
+  }>;
+}
 
 export function DashboardPanel() {
-  const [stats, setStats] = useState<DashboardStats | null>(() => {
-    try { return getStats(); } catch { return null; }
-  });
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const { setPanel, selectWorkOrder } = useAppStore();
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(r => r.json())
+      .then(data => setStats(data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-zinc-400">Cargando...</div>
+      </div>
+    );
+  }
 
   if (!stats) return null;
 
@@ -166,6 +205,41 @@ export function DashboardPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Overdue rules list */}
+      {stats.overdueRulesList.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              Reglas Vencidas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {stats.overdueRulesList.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="flex items-center gap-3 p-2 rounded-lg border border-red-100 bg-red-50/50"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-zinc-900 truncate">{rule.name}</p>
+                    <p className="text-xs text-zinc-500">
+                      {rule.part.aircraft.registration} — {rule.part.name}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs text-red-600 font-mono">
+                      {rule.intervalHours ? `${rule.hoursSinceLast}/${rule.intervalHours}h` : ''}
+                      {rule.intervalMonths ? ` / ${rule.intervalMonths}m` : ''}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

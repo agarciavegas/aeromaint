@@ -1,14 +1,29 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, RefreshCw, Send, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from './rule-badge';
 import { PartTree } from './part-tree';
 import { useAppStore } from '@/store/app-store';
-import { getAircraft } from '@/lib/local-db';
-import type { Aircraft } from '@/lib/local-db';
+
+interface AircraftDetailData {
+  id: string;
+  registration: string;
+  serialNumber: string | null;
+  totalHours: number;
+  totalCycles: number;
+  year: number | null;
+  status: string;
+  model: {
+    id: string;
+    name: string;
+    engineModel: string | null;
+    propModel: string | null;
+  };
+  parts: any[];
+}
 
 interface AircraftDetailProps {
   aircraftId: string;
@@ -18,19 +33,30 @@ interface AircraftDetailProps {
 }
 
 export function AircraftDetail({ aircraftId, onBack, onUpdateHours, onCreateWorkOrder }: AircraftDetailProps) {
-  const [aircraft, setAircraft] = useState<Aircraft | null>(() => {
-    try { return getAircraft(aircraftId); } catch { return null; }
-  });
+  const [aircraft, setAircraft] = useState<AircraftDetailData | null>(null);
+  const [loading, setLoading] = useState(true);
   const { selectedRuleIds, clearRuleSelection } = useAppStore();
 
-  const refreshAircraft = useCallback(() => {
-    try { setAircraft(getAircraft(aircraftId)); } catch {}
+  const fetchAircraft = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/aircraft/${aircraftId}`)
+      .then(r => r.json())
+      .then(data => { setAircraft(data); setLoading(false); })
+      .catch(() => setLoading(false));
   }, [aircraftId]);
 
-  // Clear selection on unmount
-  useState(() => {
+  useEffect(() => {
+    fetchAircraft();
     return () => { clearRuleSelection(); };
-  });
+  }, [fetchAircraft, clearRuleSelection]);
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-zinc-400">Cargando...</div>
+      </div>
+    );
+  }
 
   if (!aircraft) {
     return (
@@ -41,9 +67,9 @@ export function AircraftDetail({ aircraftId, onBack, onUpdateHours, onCreateWork
     );
   }
 
-  const countRules = (parts: Aircraft['parts']): { compliant: number; due_soon: number; overdue: number; total: number } => {
+  const countRules = (parts: any[]): { compliant: number; due_soon: number; overdue: number; total: number } => {
     let compliant = 0, due_soon = 0, overdue = 0, total = 0;
-    const walk = (partsList: Aircraft['parts']) => {
+    const walk = (partsList: any[]) => {
       for (const p of partsList) {
         for (const r of p.rules || []) {
           total++;
@@ -144,7 +170,7 @@ export function AircraftDetail({ aircraftId, onBack, onUpdateHours, onCreateWork
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <PartTree parts={aircraft.parts} />
+          <PartTree parts={aircraft.parts} showPartNumbers showHours />
         </CardContent>
       </Card>
     </div>

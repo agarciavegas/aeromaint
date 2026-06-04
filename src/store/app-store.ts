@@ -6,12 +6,14 @@ interface AppState {
   currentPanel: Panel;
   selectedAircraftId: string | null;
   selectedWorkOrderId: string | null;
+  selectedModelId: string | null;
   selectedRuleIds: string[];
   sidebarOpen: boolean;
 
   setPanel: (panel: Panel) => void;
   selectAircraft: (id: string | null) => void;
   selectWorkOrder: (id: string | null) => void;
+  selectModel: (id: string | null) => void;
   toggleRuleSelection: (ruleId: string) => void;
   clearRuleSelection: () => void;
   setSidebarOpen: (open: boolean) => void;
@@ -21,14 +23,23 @@ export const useAppStore = create<AppState>((set) => ({
   currentPanel: 'dashboard',
   selectedAircraftId: null,
   selectedWorkOrderId: null,
+  selectedModelId: null,
   selectedRuleIds: [],
   sidebarOpen: false,
 
-  setPanel: (panel) => set({ currentPanel: panel, selectedAircraftId: null, selectedWorkOrderId: null, selectedRuleIds: [] }),
+  setPanel: (panel) => set({
+    currentPanel: panel,
+    selectedAircraftId: null,
+    selectedWorkOrderId: null,
+    selectedModelId: null,
+    selectedRuleIds: [],
+  }),
 
   selectAircraft: (id) => set({ selectedAircraftId: id }),
 
   selectWorkOrder: (id) => set({ selectedWorkOrderId: id }),
+
+  selectModel: (id) => set({ selectedModelId: id }),
 
   toggleRuleSelection: (ruleId) =>
     set((state) => {

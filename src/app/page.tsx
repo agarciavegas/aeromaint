@@ -9,15 +9,16 @@ import { WorkOrdersPanel } from '@/components/airworthiness/work-orders-panel';
 import { ModelsPanel } from '@/components/airworthiness/models-panel';
 import { CreateAircraftDialog } from '@/components/airworthiness/create-aircraft-dialog';
 import { CreateWorkOrderDialog } from '@/components/airworthiness/create-work-order-dialog';
+import { CreateModelDialog } from '@/components/airworthiness/create-model-dialog';
 import { UpdateHoursDialog } from '@/components/airworthiness/update-hours-dialog';
-import { Menu, Database, Download, Upload, RotateCcw } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { isSeeded, seedDatabase, exportData, importData, resetDatabase, getAircraft } from '@/lib/local-db';
 
 export default function Home() {
-  const { currentPanel, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { currentPanel, sidebarOpen, setSidebarOpen, selectedWorkOrderId, selectWorkOrder } = useAppStore();
   const [createAircraftOpen, setCreateAircraftOpen] = useState(false);
   const [createWorkOrderOpen, setCreateWorkOrderOpen] = useState(false);
+  const [createModelOpen, setCreateModelOpen] = useState(false);
   const [updateHoursOpen, setUpdateHoursOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [selectedAircraftIdForHours, setSelectedAircraftIdForHours] = useState<string | null>(null);
@@ -28,19 +29,21 @@ export default function Home() {
     cycles: 0,
     registration: '',
   });
-  const [seeding, setSeeding] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const handleUpdateHours = useCallback((aircraftId: string) => {
-    const ac = getAircraft(aircraftId);
-    if (ac) {
+  const handleUpdateHours = useCallback(async (aircraftId: string) => {
+    try {
+      const res = await fetch(`/api/aircraft/${aircraftId}`);
+      const data = await res.json();
       setSelectedAircraftIdForHours(aircraftId);
       setAircraftData({
-        hours: ac.totalHours,
-        cycles: ac.totalCycles,
-        registration: ac.registration,
+        hours: data.totalHours,
+        cycles: data.totalCycles,
+        registration: data.registration,
       });
       setUpdateHoursOpen(true);
+    } catch (err) {
+      console.error('Error fetching aircraft:', err);
     }
   }, []);
 
@@ -53,56 +56,6 @@ export default function Home() {
   const handleCreateAircraft = useCallback((modelId: string) => {
     setSelectedModelId(modelId);
     setCreateAircraftOpen(true);
-  }, []);
-
-  const handleSeedDatabase = useCallback(() => {
-    setSeeding(true);
-    try {
-      seedDatabase();
-      setRefreshKey(k => k + 1);
-    } finally {
-      setSeeding(false);
-    }
-  }, []);
-
-  const handleResetDatabase = useCallback(() => {
-    if (confirm('¿Estás seguro? Se borrarán todos los datos.')) {
-      resetDatabase();
-      setRefreshKey(k => k + 1);
-    }
-  }, []);
-
-  const handleExport = useCallback(() => {
-    const data = exportData();
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `aeromaint-backup-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, []);
-
-  const handleImport = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const text = ev.target?.result as string;
-          if (importData(text)) {
-            setRefreshKey(k => k + 1);
-          } else {
-            alert('Error al importar los datos. Formato no válido.');
-          }
-        };
-        reader.readAsText(file);
-      }
-    };
-    input.click();
   }, []);
 
   const triggerRefresh = useCallback(() => {
@@ -130,10 +83,18 @@ export default function Home() {
               setSelectedAircraftIdForWO(null);
               setCreateWorkOrderOpen(true);
             }}
+            initialWorkOrderId={selectedWorkOrderId}
+            refreshKey={refreshKey}
           />
         );
       case 'models':
-        return <ModelsPanel key={`models-${refreshKey}`} onCreateAircraft={handleCreateAircraft} />;
+        return (
+          <ModelsPanel
+            key={`models-${refreshKey}`}
+            onCreateAircraft={handleCreateAircraft}
+            onCreateModel={() => setCreateModelOpen(true)}
+          />
+        );
       default:
         return <DashboardPanel key={`dash-${refreshKey}`} />;
     }
@@ -172,28 +133,7 @@ export default function Home() {
             >
               <Menu className="h-5 w-5" />
             </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExport} className="text-xs">
-              <Download className="h-3.5 w-3.5 mr-1.5" />
-              Exportar
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleImport} className="text-xs">
-              <Upload className="h-3.5 w-3.5 mr-1.5" />
-              Importar
-            </Button>
-            {!isSeeded() && (
-              <Button variant="outline" size="sm" onClick={handleSeedDatabase} disabled={seeding} className="text-xs">
-                <Database className="h-3.5 w-3.5 mr-1.5" />
-                {seeding ? 'Cargando...' : 'Cargar Datos'}
-              </Button>
-            )}
-            {isSeeded() && (
-              <Button variant="ghost" size="sm" onClick={handleResetDatabase} className="text-xs text-red-500">
-                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                Reset
-              </Button>
-            )}
+            <h2 className="text-sm font-medium text-zinc-500">AeroMaint — Gestión de Aeronavegabilidad</h2>
           </div>
         </header>
 
@@ -216,6 +156,12 @@ export default function Home() {
         onOpenChange={setCreateWorkOrderOpen}
         preselectedRuleIds={preselectedRuleIds}
         preselectedAircraftId={selectedAircraftIdForWO || undefined}
+        onCreated={triggerRefresh}
+      />
+
+      <CreateModelDialog
+        open={createModelOpen}
+        onOpenChange={setCreateModelOpen}
         onCreated={triggerRefresh}
       />
 
