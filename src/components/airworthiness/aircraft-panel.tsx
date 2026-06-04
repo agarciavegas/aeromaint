@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plane, Search, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Plane, Search } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { StatusBadge } from './rule-badge';
 import { AircraftDetail } from './aircraft-detail';
-import type { Aircraft } from './types';
+import { getAircraftList } from '@/lib/local-db';
+import type { Aircraft } from '@/lib/local-db';
 
 interface AircraftPanelProps {
   onUpdateHours: (aircraftId: string) => void;
@@ -15,27 +15,14 @@ interface AircraftPanelProps {
 }
 
 export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPanelProps) {
-  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [aircraft, setAircraft] = useState<Aircraft[]>(() => {
+    try { return getAircraftList(); } catch { return []; }
+  });
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchAircraft();
-  }, []);
-
-  const fetchAircraft = async () => {
-    try {
-      const res = await fetch('/api/aircraft');
-      if (res.ok) {
-        const data = await res.json();
-        setAircraft(data);
-      }
-    } catch (err) {
-      console.error('Error fetching aircraft:', err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshAircraft = () => {
+    try { setAircraft(getAircraftList()); } catch {}
   };
 
   const filteredAircraft = aircraft.filter(
@@ -44,7 +31,6 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
       a.model?.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Count rules by status for an aircraft
   const getRuleStatuses = (a: Aircraft) => {
     let overdue = 0, dueSoon = 0;
     const walk = (parts: Aircraft['parts']) => {
@@ -64,7 +50,7 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
     return (
       <AircraftDetail
         aircraftId={selectedId}
-        onBack={() => { setSelectedId(null); fetchAircraft(); }}
+        onBack={() => { setSelectedId(null); refreshAircraft(); }}
         onUpdateHours={() => onUpdateHours(selectedId)}
         onCreateWorkOrder={onCreateWorkOrder}
       />
@@ -80,7 +66,6 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
         </div>
       </div>
 
-      {/* Search */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
         <Input
@@ -91,18 +76,7 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
         />
       </div>
 
-      {/* Aircraft grid */}
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-24 bg-muted rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : filteredAircraft.length === 0 ? (
+      {filteredAircraft.length === 0 ? (
         <div className="text-center py-12 text-zinc-400">
           <Plane className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No se encontraron aeronaves</p>
@@ -125,7 +99,6 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
                     </div>
                     <StatusBadge status={a.status} type="aircraft" />
                   </div>
-
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-zinc-400 text-xs">Horas TSN</span>
@@ -136,7 +109,6 @@ export function AircraftPanel({ onUpdateHours, onCreateWorkOrder }: AircraftPane
                       <p className="font-mono font-medium">{a.totalCycles.toLocaleString()}</p>
                     </div>
                   </div>
-
                   {(statuses.overdue > 0 || statuses.dueSoon > 0) && (
                     <div className="flex items-center gap-3 mt-3 pt-3 border-t border-zinc-100">
                       {statuses.overdue > 0 && (

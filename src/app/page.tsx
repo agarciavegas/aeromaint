@@ -10,8 +10,9 @@ import { ModelsPanel } from '@/components/airworthiness/models-panel';
 import { CreateAircraftDialog } from '@/components/airworthiness/create-aircraft-dialog';
 import { CreateWorkOrderDialog } from '@/components/airworthiness/create-work-order-dialog';
 import { UpdateHoursDialog } from '@/components/airworthiness/update-hours-dialog';
-import { Menu, Database } from 'lucide-react';
+import { Menu, Database, Download, Upload, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isSeeded, seedDatabase, exportData, importData, resetDatabase, getAircraft } from '@/lib/local-db';
 
 export default function Home() {
   const { currentPanel, sidebarOpen, setSidebarOpen } = useAppStore();
@@ -28,22 +29,18 @@ export default function Home() {
     registration: '',
   });
   const [seeding, setSeeding] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const handleUpdateHours = useCallback(async (aircraftId: string) => {
-    try {
-      const res = await fetch(`/api/aircraft/${aircraftId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedAircraftIdForHours(aircraftId);
-        setAircraftData({
-          hours: data.totalHours,
-          cycles: data.totalCycles,
-          registration: data.registration,
-        });
-        setUpdateHoursOpen(true);
-      }
-    } catch (err) {
-      console.error('Error fetching aircraft for hours update:', err);
+  const handleUpdateHours = useCallback((aircraftId: string) => {
+    const ac = getAircraft(aircraftId);
+    if (ac) {
+      setSelectedAircraftIdForHours(aircraftId);
+      setAircraftData({
+        hours: ac.totalHours,
+        cycles: ac.totalCycles,
+        registration: ac.registration,
+      });
+      setUpdateHoursOpen(true);
     }
   }, []);
 
@@ -58,27 +55,68 @@ export default function Home() {
     setCreateAircraftOpen(true);
   }, []);
 
-  const handleSeedDatabase = useCallback(async () => {
+  const handleSeedDatabase = useCallback(() => {
     setSeeding(true);
     try {
-      const res = await fetch('/api/seed', { method: 'POST' });
-      if (res.ok) {
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error('Error seeding database:', err);
+      seedDatabase();
+      setRefreshKey(k => k + 1);
     } finally {
       setSeeding(false);
     }
   }, []);
 
+  const handleResetDatabase = useCallback(() => {
+    if (confirm('¿Estás seguro? Se borrarán todos los datos.')) {
+      resetDatabase();
+      setRefreshKey(k => k + 1);
+    }
+  }, []);
+
+  const handleExport = useCallback(() => {
+    const data = exportData();
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aeromaint-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const handleImport = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const text = ev.target?.result as string;
+          if (importData(text)) {
+            setRefreshKey(k => k + 1);
+          } else {
+            alert('Error al importar los datos. Formato no válido.');
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  }, []);
+
+  const triggerRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1);
+  }, []);
+
   const renderPanel = () => {
     switch (currentPanel) {
       case 'dashboard':
-        return <DashboardPanel />;
+        return <DashboardPanel key={`dash-${refreshKey}`} />;
       case 'aircraft':
         return (
           <AircraftPanel
+            key={`ac-${refreshKey}`}
             onUpdateHours={handleUpdateHours}
             onCreateWorkOrder={handleCreateWorkOrder}
           />
@@ -86,6 +124,7 @@ export default function Home() {
       case 'workorders':
         return (
           <WorkOrdersPanel
+            key={`wo-${refreshKey}`}
             onCreateWorkOrder={() => {
               setPreselectedRuleIds([]);
               setSelectedAircraftIdForWO(null);
@@ -94,15 +133,15 @@ export default function Home() {
           />
         );
       case 'models':
-        return <ModelsPanel onCreateAircraft={handleCreateAircraft} />;
+        return <ModelsPanel key={`models-${refreshKey}`} onCreateAircraft={handleCreateAircraft} />;
       default:
-        return <DashboardPanel />;
+        return <DashboardPanel key={`dash-${refreshKey}`} />;
     }
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      {/* Sidebar - hidden on mobile unless toggled */}
+      {/* Sidebar */}
       <div className="hidden md:flex">
         <SidebarNav />
       </div>
@@ -134,16 +173,28 @@ export default function Home() {
               <Menu className="h-5 w-5" />
             </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSeedDatabase}
-            disabled={seeding}
-            className="text-xs"
-          >
-            <Database className="h-3.5 w-3.5 mr-1.5" />
-            {seeding ? 'Cargando datos...' : 'Cargar Datos de Ejemplo'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExport} className="text-xs">
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              Exportar
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleImport} className="text-xs">
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              Importar
+            </Button>
+            {!isSeeded() && (
+              <Button variant="outline" size="sm" onClick={handleSeedDatabase} disabled={seeding} className="text-xs">
+                <Database className="h-3.5 w-3.5 mr-1.5" />
+                {seeding ? 'Cargando...' : 'Cargar Datos'}
+              </Button>
+            )}
+            {isSeeded() && (
+              <Button variant="ghost" size="sm" onClick={handleResetDatabase} className="text-xs text-red-500">
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Reset
+              </Button>
+            )}
+          </div>
         </header>
 
         {/* Panel content */}
@@ -157,9 +208,7 @@ export default function Home() {
         open={createAircraftOpen}
         onOpenChange={setCreateAircraftOpen}
         modelId={selectedModelId}
-        onCreated={() => {
-          // Refresh handled by panel re-renders
-        }}
+        onCreated={triggerRefresh}
       />
 
       <CreateWorkOrderDialog
@@ -167,9 +216,7 @@ export default function Home() {
         onOpenChange={setCreateWorkOrderOpen}
         preselectedRuleIds={preselectedRuleIds}
         preselectedAircraftId={selectedAircraftIdForWO || undefined}
-        onCreated={() => {
-          // Refresh handled by panel re-renders
-        }}
+        onCreated={triggerRefresh}
       />
 
       <UpdateHoursDialog
@@ -179,9 +226,7 @@ export default function Home() {
         currentHours={aircraftData.hours}
         currentCycles={aircraftData.cycles}
         registration={aircraftData.registration}
-        onUpdated={() => {
-          // Refresh handled by panel re-renders
-        }}
+        onUpdated={triggerRefresh}
       />
     </div>
   );

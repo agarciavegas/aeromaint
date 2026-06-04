@@ -1,50 +1,36 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, ClipboardList, Plus, CheckCircle2, Play, XCircle, MoreHorizontal } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ArrowLeft, ClipboardList, Plus, CheckCircle2, Play, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatusBadge, PriorityBadge } from './rule-badge';
 import { useAppStore } from '@/store/app-store';
-import type { WorkOrder } from './types';
+import { getWorkOrders, getWorkOrder, updateWorkOrder as dbUpdateWorkOrder, deleteWorkOrder as dbDeleteWorkOrder, addWorkOrderItem as dbAddWorkOrderItem, updateWorkOrderItem as dbUpdateWorkOrderItem } from '@/lib/local-db';
+import type { WorkOrder } from '@/lib/local-db';
 
 interface WorkOrdersPanelProps {
   onCreateWorkOrder: () => void;
 }
 
 export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(() => {
+    try { return getWorkOrders(); } catch { return []; }
+  });
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { selectedWorkOrderId, selectWorkOrder } = useAppStore();
 
-  useEffect(() => {
-    if (selectedWorkOrderId) {
-      setSelectedId(selectedWorkOrderId);
-      selectWorkOrder(null);
-    }
-  }, [selectedWorkOrderId, selectWorkOrder]);
+  // Handle incoming selection from dashboard
+  if (selectedWorkOrderId && !selectedId) {
+    setSelectedId(selectedWorkOrderId);
+    selectWorkOrder(null);
+  }
 
-  useEffect(() => {
-    fetchWorkOrders();
-  }, []);
-
-  const fetchWorkOrders = async () => {
-    try {
-      const res = await fetch('/api/workorders');
-      if (res.ok) {
-        const data = await res.json();
-        setWorkOrders(data);
-      }
-    } catch (err) {
-      console.error('Error fetching work orders:', err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshWorkOrders = () => {
+    try { setWorkOrders(getWorkOrders()); } catch {}
   };
 
   const filteredWorkOrders = workOrders.filter(
@@ -55,7 +41,7 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
     return (
       <WorkOrderDetail
         workOrderId={selectedId}
-        onBack={() => { setSelectedId(null); fetchWorkOrders(); }}
+        onBack={() => { setSelectedId(null); refreshWorkOrders(); }}
       />
     );
   }
@@ -73,7 +59,6 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
         </Button>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-44">
@@ -90,18 +75,7 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
         <span className="text-sm text-zinc-400">{filteredWorkOrders.length} orden(es)</span>
       </div>
 
-      {/* Work orders list */}
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-16 bg-muted rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : filteredWorkOrders.length === 0 ? (
+      {filteredWorkOrders.length === 0 ? (
         <div className="text-center py-12 text-zinc-400">
           <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No hay órdenes de trabajo</p>
@@ -126,7 +100,6 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
                   </div>
                   <span className="text-xs text-zinc-400 font-mono">{wo.aircraft?.registration}</span>
                 </div>
-
                 <div className="flex items-center gap-4 text-xs text-zinc-500">
                   <span>{wo.items?.length || 0} item(s)</span>
                   {wo.assignedTo && <span>Asignado: {wo.assignedTo}</span>}
@@ -143,96 +116,55 @@ export function WorkOrdersPanel({ onCreateWorkOrder }: WorkOrdersPanelProps) {
   );
 }
 
-// Work Order Detail component
 function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack: () => void }) {
-  const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [workOrder, setWorkOrder] = useState<WorkOrder | null>(() => {
+    try { return getWorkOrder(workOrderId); } catch { return null; }
+  });
   const [newItemDesc, setNewItemDesc] = useState('');
 
-  const fetchWorkOrder = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/workorders/${workOrderId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setWorkOrder(data);
-      }
-    } catch (err) {
-      console.error('Error fetching work order:', err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshWorkOrder = useCallback(() => {
+    try { setWorkOrder(getWorkOrder(workOrderId)); } catch {}
   }, [workOrderId]);
 
-  useEffect(() => {
-    fetchWorkOrder();
-  }, [fetchWorkOrder]);
-
-  const updateWorkOrderStatus = async (newStatus: string) => {
+  const handleUpdateStatus = (newStatus: string) => {
     try {
-      const res = await fetch(`/api/workorders/${workOrderId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (res.ok) {
-        fetchWorkOrder();
-      }
+      dbUpdateWorkOrder(workOrderId, { status: newStatus });
+      refreshWorkOrder();
     } catch (err) {
       console.error('Error updating work order:', err);
     }
   };
 
-  const updateItemStatus = async (itemId: string, newStatus: string) => {
+  const handleUpdateItemStatus = (itemId: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/workorders/${workOrderId}/items/${itemId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (res.ok) {
-        fetchWorkOrder();
-      }
+      dbUpdateWorkOrderItem(itemId, { status: newStatus });
+      refreshWorkOrder();
     } catch (err) {
       console.error('Error updating item:', err);
     }
   };
 
-  const addManualItem = async () => {
+  const handleAddManualItem = () => {
     if (!newItemDesc.trim()) return;
     try {
-      const res = await fetch(`/api/workorders/${workOrderId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: newItemDesc.trim() }),
-      });
-      if (res.ok) {
-        setNewItemDesc('');
-        fetchWorkOrder();
-      }
+      dbAddWorkOrderItem(workOrderId, newItemDesc.trim());
+      setNewItemDesc('');
+      refreshWorkOrder();
     } catch (err) {
       console.error('Error adding item:', err);
     }
   };
 
-  const deleteWorkOrder = async () => {
-    try {
-      const res = await fetch(`/api/workorders/${workOrderId}`, { method: 'DELETE' });
-      if (res.ok) {
+  const handleDelete = () => {
+    if (confirm('¿Eliminar esta orden de trabajo?')) {
+      try {
+        dbDeleteWorkOrder(workOrderId);
         onBack();
+      } catch (err) {
+        console.error('Error deleting work order:', err);
       }
-    } catch (err) {
-      console.error('Error deleting work order:', err);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="p-6 space-y-4">
-        <div className="h-20 bg-muted animate-pulse rounded-lg" />
-        <div className="h-64 bg-muted animate-pulse rounded-lg" />
-      </div>
-    );
-  }
 
   if (!workOrder) {
     return (
@@ -248,7 +180,6 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
           <ArrowLeft className="h-4 w-4" />
@@ -263,7 +194,6 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
         </div>
       </div>
 
-      {/* Info cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
           <CardContent className="p-3 text-center">
@@ -291,32 +221,30 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
         </Card>
       </div>
 
-      {/* Action buttons */}
       <div className="flex items-center gap-2 flex-wrap">
         {workOrder.status === 'open' && (
-          <Button size="sm" variant="outline" onClick={() => updateWorkOrderStatus('in_progress')}>
+          <Button size="sm" variant="outline" onClick={() => handleUpdateStatus('in_progress')}>
             <Play className="h-3.5 w-3.5 mr-1.5" />
             Iniciar
           </Button>
         )}
         {workOrder.status === 'in_progress' && (
-          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => updateWorkOrderStatus('completed')}>
+          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleUpdateStatus('completed')}>
             <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
             Completar
           </Button>
         )}
         {(workOrder.status === 'open' || workOrder.status === 'in_progress') && (
-          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => updateWorkOrderStatus('cancelled')}>
+          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={() => handleUpdateStatus('cancelled')}>
             <XCircle className="h-3.5 w-3.5 mr-1.5" />
             Cancelar
           </Button>
         )}
-        <Button size="sm" variant="ghost" className="text-red-500" onClick={deleteWorkOrder}>
+        <Button size="sm" variant="ghost" className="text-red-500" onClick={handleDelete}>
           Eliminar
         </Button>
       </div>
 
-      {/* Description */}
       {workOrder.description && (
         <Card>
           <CardContent className="p-4">
@@ -326,7 +254,6 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
         </Card>
       )}
 
-      {/* Items */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Items de Trabajo</CardTitle>
@@ -360,32 +287,17 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
               {workOrder.status !== 'completed' && workOrder.status !== 'cancelled' && (
                 <div className="flex items-center gap-1">
                   {item.status === 'pending' && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs"
-                      onClick={() => updateItemStatus(item.id, 'in_progress')}
-                    >
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => handleUpdateItemStatus(item.id, 'in_progress')}>
                       <Play className="h-3 w-3" />
                     </Button>
                   )}
                   {(item.status === 'pending' || item.status === 'in_progress') && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-emerald-600"
-                      onClick={() => updateItemStatus(item.id, 'completed')}
-                    >
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-emerald-600" onClick={() => handleUpdateItemStatus(item.id, 'completed')}>
                       <CheckCircle2 className="h-3 w-3" />
                     </Button>
                   )}
                   {item.status === 'pending' && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-amber-600"
-                      onClick={() => updateItemStatus(item.id, 'deferred')}
-                    >
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-amber-600" onClick={() => handleUpdateItemStatus(item.id, 'deferred')}>
                       Diferir
                     </Button>
                   )}
@@ -394,7 +306,6 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
             </div>
           ))}
 
-          {/* Add manual item */}
           {workOrder.status !== 'completed' && workOrder.status !== 'cancelled' && (
             <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-100">
               <Textarea
@@ -404,7 +315,7 @@ function WorkOrderDetail({ workOrderId, onBack }: { workOrderId: string; onBack:
                 className="text-sm min-h-[40px] h-10 resize-none"
                 rows={1}
               />
-              <Button size="sm" variant="outline" onClick={addManualItem} disabled={!newItemDesc.trim()}>
+              <Button size="sm" variant="outline" onClick={handleAddManualItem} disabled={!newItemDesc.trim()}>
                 <Plus className="h-3.5 w-3.5" />
               </Button>
             </div>

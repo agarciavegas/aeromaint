@@ -13,7 +13,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { AircraftModel } from './types';
+import { getModels, createAircraftFromModel } from '@/lib/local-db';
+import type { AircraftModel } from '@/lib/local-db';
 
 interface CreateAircraftDialogProps {
   open: boolean;
@@ -34,26 +35,14 @@ export function CreateAircraftDialog({ open, onOpenChange, modelId, onCreated }:
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchModels();
-  }, []);
+    try { setModels(getModels()); } catch {}
+  }, [open]);
 
   useEffect(() => {
     if (modelId) setSelectedModelId(modelId);
   }, [modelId]);
 
-  const fetchModels = async () => {
-    try {
-      const res = await fetch('/api/models');
-      if (res.ok) {
-        const data = await res.json();
-        setModels(data);
-      }
-    } catch (err) {
-      console.error('Error fetching models:', err);
-    }
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!selectedModelId || !registration.trim()) {
       setError('Matrícula y modelo son obligatorios');
       return;
@@ -63,33 +52,24 @@ export function CreateAircraftDialog({ open, onOpenChange, modelId, onCreated }:
     setError('');
 
     try {
-      const res = await fetch('/api/aircraft/create-from-model', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modelId: selectedModelId,
-          registration: registration.trim().toUpperCase(),
-          serialNumber: serialNumber.trim() || null,
-          totalHours: parseFloat(totalHours) || 0,
-          totalCycles: parseInt(totalCycles) || 0,
-          year: year ? parseInt(year) : null,
-        }),
+      createAircraftFromModel({
+        modelId: selectedModelId,
+        registration: registration.trim().toUpperCase(),
+        serialNumber: serialNumber.trim() || null,
+        totalHours: parseFloat(totalHours) || 0,
+        totalCycles: parseInt(totalCycles) || 0,
+        year: year ? parseInt(year) : null,
       });
 
-      if (res.ok) {
-        setRegistration('');
-        setSerialNumber('');
-        setTotalHours('0');
-        setTotalCycles('0');
-        setYear('');
-        onCreated();
-        onOpenChange(false);
-      } else {
-        const data = await res.json();
-        setError(data.error || 'Error al crear aeronave');
-      }
-    } catch (err) {
-      setError('Error de conexión');
+      setRegistration('');
+      setSerialNumber('');
+      setTotalHours('0');
+      setTotalCycles('0');
+      setYear('');
+      onCreated();
+      onOpenChange(false);
+    } catch (err: any) {
+      setError(err.message || 'Error al crear aeronave');
     } finally {
       setSubmitting(false);
     }
@@ -135,56 +115,26 @@ export function CreateAircraftDialog({ open, onOpenChange, modelId, onCreated }:
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="registration">Matrícula *</Label>
-              <Input
-                id="registration"
-                placeholder="EC-ABC"
-                value={registration}
-                onChange={(e) => setRegistration(e.target.value.toUpperCase())}
-                className="font-mono"
-              />
+              <Input id="registration" placeholder="EC-ABC" value={registration} onChange={(e) => setRegistration(e.target.value.toUpperCase())} className="font-mono" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="serial">Número de Serie</Label>
-              <Input
-                id="serial"
-                placeholder="172-72345"
-                value={serialNumber}
-                onChange={(e) => setSerialNumber(e.target.value)}
-                className="font-mono"
-              />
+              <Input id="serial" placeholder="172-72345" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} className="font-mono" />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
               <Label htmlFor="hours">Horas TSN</Label>
-              <Input
-                id="hours"
-                type="number"
-                value={totalHours}
-                onChange={(e) => setTotalHours(e.target.value)}
-                className="font-mono"
-              />
+              <Input id="hours" type="number" value={totalHours} onChange={(e) => setTotalHours(e.target.value)} className="font-mono" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="cycles">Ciclos</Label>
-              <Input
-                id="cycles"
-                type="number"
-                value={totalCycles}
-                onChange={(e) => setTotalCycles(e.target.value)}
-                className="font-mono"
-              />
+              <Input id="cycles" type="number" value={totalCycles} onChange={(e) => setTotalCycles(e.target.value)} className="font-mono" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="year">Año</Label>
-              <Input
-                id="year"
-                type="number"
-                placeholder="2020"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-              />
+              <Input id="year" type="number" placeholder="2020" value={year} onChange={(e) => setYear(e.target.value)} />
             </div>
           </div>
         </div>
@@ -193,11 +143,7 @@ export function CreateAircraftDialog({ open, onOpenChange, modelId, onCreated }:
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancelar
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || !selectedModelId || !registration.trim()}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
+          <Button onClick={handleSubmit} disabled={submitting || !selectedModelId || !registration.trim()} className="bg-emerald-600 hover:bg-emerald-700">
             {submitting && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
             Crear Aeronave
           </Button>

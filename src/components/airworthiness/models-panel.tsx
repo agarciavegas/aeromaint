@@ -1,38 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BookOpen, ChevronRight, ChevronDown, Settings2, Wrench, CircleDot, Plane } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { AircraftModel, PartTemplate, RuleTemplate } from './types';
+import { getModels } from '@/lib/local-db';
+import type { AircraftModel, PartTemplate, RuleTemplate } from '@/lib/local-db';
 
 interface ModelsPanelProps {
   onCreateAircraft: (modelId: string) => void;
 }
 
 export function ModelsPanel({ onCreateAircraft }: ModelsPanelProps) {
-  const [models, setModels] = useState<AircraftModel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [models, setModels] = useState<AircraftModel[]>(() => {
+    try { return getModels(); } catch { return []; }
+  });
   const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchModels();
-  }, []);
-
-  const fetchModels = async () => {
-    try {
-      const res = await fetch('/api/models');
-      if (res.ok) {
-        const data = await res.json();
-        setModels(data);
-      }
-    } catch (err) {
-      console.error('Error fetching models:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -41,17 +25,7 @@ export function ModelsPanel({ onCreateAircraft }: ModelsPanelProps) {
         <p className="text-sm text-zinc-500 mt-1">Plantillas predefinidas para crear nuevas aeronaves</p>
       </div>
 
-      {loading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-24 bg-muted rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : models.length === 0 ? (
+      {models.length === 0 ? (
         <div className="text-center py-12 text-zinc-400">
           <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
           <p>No hay modelos disponibles</p>
@@ -88,14 +62,11 @@ export function ModelsPanel({ onCreateAircraft }: ModelsPanelProps) {
                       {model.description && (
                         <p className="text-sm text-zinc-500 italic">{model.description}</p>
                       )}
-
-                      {/* Template parts tree */}
                       <div className="space-y-1">
                         {model.parts?.map((pt) => (
                           <TemplatePartNode key={pt.id} part={pt} level={0} />
                         ))}
                       </div>
-
                       <div className="pt-3 border-t border-zinc-100">
                         <Button
                           size="sm"

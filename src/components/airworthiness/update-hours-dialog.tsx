@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { updateAircraftHours } from '@/lib/local-db';
 
 interface UpdateHoursDialogProps {
   open: boolean;
@@ -38,7 +39,7 @@ export function UpdateHoursDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!aircraftId) return;
 
     const newHours = parseFloat(totalHours);
@@ -63,21 +64,11 @@ export function UpdateHoursDialog({
     setError('');
 
     try {
-      const res = await fetch(`/api/aircraft/${aircraftId}/hours`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ totalHours: newHours, totalCycles: newCycles }),
-      });
-
-      if (res.ok) {
-        onUpdated();
-        onOpenChange(false);
-      } else {
-        const data = await res.json();
-        setError(data.error || 'Error al actualizar horas');
-      }
-    } catch (err) {
-      setError('Error de conexión');
+      updateAircraftHours(aircraftId, newHours, newCycles);
+      onUpdated();
+      onOpenChange(false);
+    } catch (err: any) {
+      setError(err.message || 'Error al actualizar horas');
     } finally {
       setSubmitting(false);
     }
@@ -110,14 +101,7 @@ export function UpdateHoursDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="update-hours">Horas Totales (TSN)</Label>
-              <Input
-                id="update-hours"
-                type="number"
-                step="0.1"
-                value={totalHours}
-                onChange={(e) => setTotalHours(e.target.value)}
-                className="font-mono"
-              />
+              <Input id="update-hours" type="number" step="0.1" value={totalHours} onChange={(e) => setTotalHours(e.target.value)} className="font-mono" />
               <p className="text-xs text-zinc-400">
                 Actual: {currentHours.toLocaleString()}h
                 {hoursDiff > 0 && <span className="text-emerald-600 ml-1">+{hoursDiff.toFixed(1)}h</span>}
@@ -125,13 +109,7 @@ export function UpdateHoursDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="update-cycles">Ciclos Totales</Label>
-              <Input
-                id="update-cycles"
-                type="number"
-                value={totalCycles}
-                onChange={(e) => setTotalCycles(e.target.value)}
-                className="font-mono"
-              />
+              <Input id="update-cycles" type="number" value={totalCycles} onChange={(e) => setTotalCycles(e.target.value)} className="font-mono" />
               <p className="text-xs text-zinc-400">
                 Actual: {currentCycles.toLocaleString()}
                 {cyclesDiff > 0 && <span className="text-emerald-600 ml-1">+{cyclesDiff}</span>}
@@ -153,11 +131,7 @@ export function UpdateHoursDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancelar
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
+          <Button onClick={handleSubmit} disabled={submitting} className="bg-emerald-600 hover:bg-emerald-700">
             {submitting && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
             Actualizar
           </Button>

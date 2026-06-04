@@ -1,61 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Plane, ClipboardList, AlertTriangle, Clock, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge, PriorityBadge } from './rule-badge';
 import { useAppStore } from '@/store/app-store';
-import type { WorkOrder } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-
-interface DashboardStats {
-  totalAircraft: number;
-  activeWorkOrders: number;
-  overdueRules: number;
-  dueSoonRules: number;
-  compliantRules: number;
-  naRules: number;
-  recentWorkOrders: WorkOrder[];
-}
+import { getStats, type DashboardStats } from '@/lib/local-db';
+import type { WorkOrder } from '@/lib/local-db';
 
 export function DashboardPanel() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(() => {
+    try { return getStats(); } catch { return null; }
+  });
   const { setPanel, selectWorkOrder } = useAppStore();
-
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
-    try {
-      const res = await fetch('/api/stats');
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
-    } catch (err) {
-      console.error('Error fetching stats:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-16 bg-muted rounded" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   if (!stats) return null;
 
@@ -128,7 +86,6 @@ export function DashboardPanel() {
 
       {/* Charts and recent work orders */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Compliance pie chart */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Estado de Cumplimiento</CardTitle>
@@ -174,7 +131,6 @@ export function DashboardPanel() {
           </CardContent>
         </Card>
 
-        {/* Recent work orders */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Ordenes de Trabajo Recientes</CardTitle>

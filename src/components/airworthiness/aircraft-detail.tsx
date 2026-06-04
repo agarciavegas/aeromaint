@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { ArrowLeft, Clock, RefreshCw, AlertTriangle, Send, Settings2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ArrowLeft, RefreshCw, Send, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from './rule-badge';
 import { PartTree } from './part-tree';
 import { useAppStore } from '@/store/app-store';
-import type { Aircraft, Rule } from './types';
+import { getAircraft } from '@/lib/local-db';
+import type { Aircraft } from '@/lib/local-db';
 
 interface AircraftDetailProps {
   aircraftId: string;
@@ -18,42 +18,19 @@ interface AircraftDetailProps {
 }
 
 export function AircraftDetail({ aircraftId, onBack, onUpdateHours, onCreateWorkOrder }: AircraftDetailProps) {
-  const [aircraft, setAircraft] = useState<Aircraft | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [aircraft, setAircraft] = useState<Aircraft | null>(() => {
+    try { return getAircraft(aircraftId); } catch { return null; }
+  });
   const { selectedRuleIds, clearRuleSelection } = useAppStore();
 
-  const fetchAircraft = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/aircraft/${aircraftId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setAircraft(data);
-      }
-    } catch (err) {
-      console.error('Error fetching aircraft:', err);
-    } finally {
-      setLoading(false);
-    }
+  const refreshAircraft = useCallback(() => {
+    try { setAircraft(getAircraft(aircraftId)); } catch {}
   }, [aircraftId]);
 
-  useEffect(() => {
-    fetchAircraft();
-  }, [fetchAircraft]);
-
-  useEffect(() => {
-    return () => {
-      clearRuleSelection();
-    };
-  }, [clearRuleSelection]);
-
-  if (loading) {
-    return (
-      <div className="p-6 space-y-4">
-        <div className="h-20 bg-muted animate-pulse rounded-lg" />
-        <div className="h-64 bg-muted animate-pulse rounded-lg" />
-      </div>
-    );
-  }
+  // Clear selection on unmount
+  useState(() => {
+    return () => { clearRuleSelection(); };
+  });
 
   if (!aircraft) {
     return (
@@ -64,7 +41,6 @@ export function AircraftDetail({ aircraftId, onBack, onUpdateHours, onCreateWork
     );
   }
 
-  // Count rules by status
   const countRules = (parts: Aircraft['parts']): { compliant: number; due_soon: number; overdue: number; total: number } => {
     let compliant = 0, due_soon = 0, overdue = 0, total = 0;
     const walk = (partsList: Aircraft['parts']) => {

@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Aircraft } from './types';
+import { getAircraftList, createWorkOrder } from '@/lib/local-db';
+import type { Aircraft } from '@/lib/local-db';
 
 interface CreateWorkOrderDialogProps {
   open: boolean;
@@ -46,27 +47,15 @@ export function CreateWorkOrderDialog({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchAircraft();
-  }, []);
+    try { setAircraft(getAircraftList()); } catch {}
+  }, [open]);
 
   useEffect(() => {
     if (preselectedAircraftId) setAircraftId(preselectedAircraftId);
     if (preselectedRuleIds.length > 0) setRuleIds(preselectedRuleIds);
   }, [preselectedAircraftId, preselectedRuleIds]);
 
-  const fetchAircraft = async () => {
-    try {
-      const res = await fetch('/api/aircraft');
-      if (res.ok) {
-        const data = await res.json();
-        setAircraft(data);
-      }
-    } catch (err) {
-      console.error('Error fetching aircraft:', err);
-    }
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!aircraftId || !title.trim()) {
       setError('Aeronave y título son obligatorios');
       return;
@@ -77,39 +66,30 @@ export function CreateWorkOrderDialog({
 
     try {
       const validManualItems = manualItems.filter(i => i.trim());
-      const res = await fetch('/api/workorders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          aircraftId,
-          title: title.trim(),
-          description: description.trim() || null,
-          priority,
-          type,
-          assignedTo: assignedTo.trim() || null,
-          scheduledDate: scheduledDate || null,
-          ruleIds,
-          manualItems: validManualItems,
-        }),
+      createWorkOrder({
+        aircraftId,
+        title: title.trim(),
+        description: description.trim() || null,
+        priority,
+        type,
+        assignedTo: assignedTo.trim() || null,
+        scheduledDate: scheduledDate || null,
+        ruleIds,
+        manualItems: validManualItems,
       });
 
-      if (res.ok) {
-        setTitle('');
-        setDescription('');
-        setPriority('normal');
-        setType('scheduled');
-        setAssignedTo('');
-        setScheduledDate('');
-        setRuleIds([]);
-        setManualItems(['']);
-        onCreated();
-        onOpenChange(false);
-      } else {
-        const data = await res.json();
-        setError(data.error || 'Error al crear orden de trabajo');
-      }
-    } catch (err) {
-      setError('Error de conexión');
+      setTitle('');
+      setDescription('');
+      setPriority('normal');
+      setType('scheduled');
+      setAssignedTo('');
+      setScheduledDate('');
+      setRuleIds([]);
+      setManualItems(['']);
+      onCreated();
+      onOpenChange(false);
+    } catch (err: any) {
+      setError(err.message || 'Error al crear orden de trabajo');
     } finally {
       setSubmitting(false);
     }
@@ -156,32 +136,19 @@ export function CreateWorkOrderDialog({
 
           <div className="space-y-2">
             <Label htmlFor="wo-title">Título *</Label>
-            <Input
-              id="wo-title"
-              placeholder="Inspección Anual - EC-ABC"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+            <Input id="wo-title" placeholder="Inspección Anual - EC-ABC" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="wo-desc">Descripción</Label>
-            <Textarea
-              id="wo-desc"
-              placeholder="Descripción de la orden de trabajo..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-            />
+            <Textarea id="wo-desc" placeholder="Descripción de la orden de trabajo..." value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Prioridad</Label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="low">Baja</SelectItem>
                   <SelectItem value="normal">Normal</SelectItem>
@@ -193,9 +160,7 @@ export function CreateWorkOrderDialog({
             <div className="space-y-2">
               <Label>Tipo</Label>
               <Select value={type} onValueChange={setType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="scheduled">Programada</SelectItem>
                   <SelectItem value="unscheduled">No programada</SelectItem>
@@ -209,21 +174,11 @@ export function CreateWorkOrderDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="wo-assigned">Asignado a</Label>
-              <Input
-                id="wo-assigned"
-                placeholder="Taller Mantenimiento A"
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-              />
+              <Input id="wo-assigned" placeholder="Taller Mantenimiento A" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="wo-date">Fecha programada</Label>
-              <Input
-                id="wo-date"
-                type="date"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-              />
+              <Input id="wo-date" type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
             </div>
           </div>
 
@@ -235,7 +190,6 @@ export function CreateWorkOrderDialog({
             </div>
           )}
 
-          {/* Manual items */}
           <div className="space-y-2">
             <Label>Items Adicionales</Label>
             {manualItems.map((item, idx) => (
@@ -251,23 +205,13 @@ export function CreateWorkOrderDialog({
                   className="text-sm"
                 />
                 {idx > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={() => setManualItems(manualItems.filter((_, i) => i !== idx))}
-                  >
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setManualItems(manualItems.filter((_, i) => i !== idx))}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
             ))}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setManualItems([...manualItems, ''])}
-              className="w-full"
-            >
+            <Button variant="outline" size="sm" onClick={() => setManualItems([...manualItems, ''])} className="w-full">
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               Agregar Item
             </Button>
@@ -278,11 +222,7 @@ export function CreateWorkOrderDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancelar
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || !aircraftId || !title.trim()}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
+          <Button onClick={handleSubmit} disabled={submitting || !aircraftId || !title.trim()} className="bg-emerald-600 hover:bg-emerald-700">
             {submitting && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
             Crear Orden
           </Button>
