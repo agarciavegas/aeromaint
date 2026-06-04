@@ -58,3 +58,6 @@ telegram-ai-bot/
 
 # local-db (replaced by Prisma backend)
 src/lib/local-db.ts
+
+# lock files (optional - keep package-lock.json for reproducibility)
+# bun.lock

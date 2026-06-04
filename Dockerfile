@@ -22,15 +22,23 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV DATABASE_URL="file:/app/db/aeromaint.db"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+# Copy standalone build
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/db ./db
+
+# Copy the db directory (will be mounted as volume for persistence)
+RUN mkdir -p /app/db && chown nextjs:nodejs /app/db
+
+# Copy entrypoint script
+COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
+RUN chmod +x ./docker-entrypoint.sh
 
 RUN chown -R nextjs:nodejs /app
 
@@ -41,4 +49,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
